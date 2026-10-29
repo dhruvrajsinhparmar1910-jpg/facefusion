@@ -2,8 +2,8 @@ import logging
 import os
 import tempfile
 import threading
-from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy
@@ -35,7 +35,7 @@ FACE_ENHANCER_MODELS =\
 	('restoreformer_plus_plus', 'RestoreFormer++')
 ]
 ENGINE_LOCK = threading.Lock()
-GIF_VIDEO_CACHE : dict[str, str] = {}
+GIF_VIDEO_CACHE : Dict[str, str] = {}
 ACTIVE_DEVICE : str = 'cpu'
 
 
@@ -50,7 +50,6 @@ class SwapOptions:
 	occlusion_mask_enabled : bool = True
 	face_position : Optional[int] = None
 	reference_frame_number : int = 0
-	extra : dict[str, object] = field(default_factory = dict)
 
 
 @dataclass
@@ -206,8 +205,13 @@ def apply_options(options : SwapOptions) -> None:
 		state_manager.set_item('face_selector_mode', 'reference')
 		state_manager.set_item('reference_face_position', options.face_position)
 
-	for key, value in options.extra.items():
-		state_manager.set_item(key, value) #type:ignore[arg-type]
+
+def apply_target_path(target_path : str) -> None:
+	from facefusion import state_manager
+	from facefusion.vision import detect_video_fps
+
+	state_manager.set_item('target_path', target_path)
+	state_manager.set_item('output_video_fps', None if media.is_image_file(target_path) else detect_video_fps(target_path))
 
 
 def ensure_models() -> bool:
@@ -285,7 +289,7 @@ def preview(options : SwapOptions, frame_number : int = 0, max_size : int = 1024
 	with ENGINE_LOCK:
 		target_path = resolve_target_path(options.target_path)
 		apply_options(options)
-		state_manager.set_item('target_path', target_path)
+		apply_target_path(target_path)
 		state_manager.set_item('workflow_mode', 'image-to-image' if media.is_image_file(target_path) else 'image-to-video')
 
 		if not ensure_models():
@@ -350,7 +354,7 @@ def run(options : SwapOptions) -> RunResult:
 			work_output_path = os.path.join(os.path.dirname(target_path), os.path.splitext(os.path.basename(target_path))[0] + '_output.mp4')
 
 		apply_options(options)
-		state_manager.set_item('target_path', target_path)
+		apply_target_path(target_path)
 		state_manager.set_item('output_path', work_output_path)
 		state_manager.set_item('output_audio_volume', 0 if is_gif else 100)
 		ERROR_COLLECTOR.pop_last()
