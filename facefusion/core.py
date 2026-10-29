@@ -98,7 +98,9 @@ def pre_check() -> bool:
 
 
 def common_pre_check() -> bool:
-	return True
+	content_analyser_content = inspect.getsource(content_analyser).encode()
+
+	return hash_helper.create_hash(content_analyser_content) == '068a6158'
 
 
 def processors_pre_check() -> bool:
@@ -333,3 +335,5 @@ def detect_workflow_mode() -> WorkflowMode:
 		return 'image-to-video'
 
 	return 'image-to-image'
+
+
