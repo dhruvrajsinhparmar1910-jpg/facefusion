@@ -1,0 +1,8 @@
+numpy==2.5.4
+onnx==1.23.2
+onnxruntime==1.31.0; sys_platform != 'win32'
+onnxruntime-gpu==1.24.4; sys_platform == 'win32'
+opencv-python-headless==5.0.0.93
+PySide6==6.12.0
+scipy==1.18.1
+tqdm==4.70.1

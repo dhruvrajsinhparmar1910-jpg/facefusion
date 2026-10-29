@@ -187,4 +187,9 @@ def remove_directory(directory_path : str) -> bool:
 
 
 def resolve_relative_path(path : str) -> str:
+	models_path = os.environ.get('FACEFUSION_MODELS_PATH')
+	models_prefix = '../.assets/models/'
+
+	if models_path and path.startswith(models_prefix):
+		return os.path.abspath(os.path.join(models_path, path[len(models_prefix):]))
 	return os.path.abspath(os.path.join(os.path.dirname(__file__), path))

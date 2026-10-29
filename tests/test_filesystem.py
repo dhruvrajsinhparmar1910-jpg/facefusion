@@ -3,7 +3,7 @@ import os.path
 import pytest
 
 from facefusion.download import conditional_download
-from facefusion.filesystem import create_directory, filter_audio_paths, filter_image_paths, get_file_extension, get_file_format, get_file_size, has_audio, has_image, has_video, in_directory, is_audio, is_directory, is_file, is_image, is_video, remove_directory, resolve_file_paths, same_file_extension
+from facefusion.filesystem import create_directory, filter_audio_paths, filter_image_paths, get_file_extension, get_file_format, get_file_size, has_audio, has_image, has_video, in_directory, is_audio, is_directory, is_file, is_image, is_video, remove_directory, resolve_file_paths, resolve_relative_path, same_file_extension
 from .helper import get_test_example_file, get_test_examples_directory, get_test_outputs_directory
 
 
@@ -133,3 +133,13 @@ def test_in_directory() -> None:
 	assert in_directory(get_test_example_file('source.jpg')) is True
 	assert in_directory('source.jpg') is False
 	assert in_directory('invalid') is False
+
+
+def test_resolve_relative_path(monkeypatch : pytest.MonkeyPatch) -> None:
+	monkeypatch.delenv('FACEFUSION_MODELS_PATH', raising = False)
+	assert resolve_relative_path('../.assets/models/inswapper_128.onnx').endswith(os.path.join('.assets', 'models', 'inswapper_128.onnx'))
+
+	monkeypatch.setenv('FACEFUSION_MODELS_PATH', os.path.abspath('models'))
+	assert resolve_relative_path('../.assets/models/inswapper_128.onnx') == os.path.abspath(os.path.join('models', 'inswapper_128.onnx'))
+	assert resolve_relative_path('../.assets/models/scope/model.dfm') == os.path.abspath(os.path.join('models', 'scope', 'model.dfm'))
+	assert resolve_relative_path('../.assets/examples/source.jpg').endswith(os.path.join('.assets', 'examples', 'source.jpg'))

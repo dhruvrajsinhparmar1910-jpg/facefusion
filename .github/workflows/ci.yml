@@ -16,9 +16,9 @@ jobs:
   - run: pip install flake8-import-order
   - run: pip install mypy
   - run: flake8 facefusion.py install.py
-  - run: flake8 facefusion tests
+  - run: flake8 facefusion tests app
   - run: mypy facefusion.py install.py
-  - run: mypy facefusion tests
+  - run: mypy facefusion tests app
  test:
   strategy:
    matrix:
