@@ -47,8 +47,44 @@ def prepare_environment() -> None:
 	os.chdir(base_directory)
 
 
+def self_test(report_path : str) -> int:
+	import tempfile
+
+	from app import engine
+	from app.settings import Settings
+
+	lines = []
+	missing_dependencies = engine.check_dependencies()
+	lines.append('dependencies missing: ' + (', '.join(missing_dependencies) or 'none'))
+
+	if not missing_dependencies:
+		from facefusion import core, state_manager
+		from facefusion.processors.core import get_processors_modules
+
+		engine.bootstrap(Settings(models_path = os.path.join(tempfile.gettempdir(), 'FaceSwap-self-test-models')))
+		processor_modules = get_processors_modules(state_manager.get_item('processors'))
+		lines.append('device: ' + engine.get_active_device())
+		lines.append('processors: ' + ', '.join(module.__name__ for module in processor_modules))
+		lines.append('content analyser check: ' + str(core.common_pre_check()))
+
+	success = not missing_dependencies and lines[-1].endswith('True')
+	lines.append('self test: ' + ('passed' if success else 'failed'))
+
+	with open(report_path, 'w', encoding = 'utf-8') as report_file:
+		report_file.write('\n'.join(lines) + '\n')
+	return 0 if success else 1
+
+
 def main() -> int:
+	report_path = None
+
+	if '--self-test' in sys.argv:
+		report_index = sys.argv.index('--self-test') + 1
+		report_path = os.path.abspath(sys.argv[report_index] if report_index < len(sys.argv) else os.path.join(get_data_directory(), 'self-test.txt'))
 	prepare_environment()
+
+	if report_path:
+		return self_test(report_path)
 
 	from PySide6.QtGui import QIcon
 	from PySide6.QtWidgets import QApplication

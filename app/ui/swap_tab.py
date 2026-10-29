@@ -209,7 +209,7 @@ class SwapTab(QWidget):
 		self.main_window.status_label.setText(result.message)
 		if result.success:
 			self.open_output_button.setEnabled(True)
-		else:
+		elif result.message != engine.ERROR_MESSAGES.get(4):
 			self.main_window.show_error(result.message)
 
 	def open_output(self) -> None:
