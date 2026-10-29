@@ -3,7 +3,7 @@ import os
 import tempfile
 import threading
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import cv2
 import numpy
@@ -34,7 +34,14 @@ FACE_ENHANCER_MODELS =\
 	('gpen_bfr_512', 'GPEN BFR 512'),
 	('restoreformer_plus_plus', 'RestoreFormer++')
 ]
-ENGINE_LOCK = threading.Lock()
+FACE_SELECTOR_MODES =\
+{
+	'all': 'many',
+	'largest': 'one',
+	'reference': 'reference'
+}
+ENGINE_LOCK = threading.RLock()
+VERIFIED_MODEL_KEYS : Set[str] = set()
 GIF_VIDEO_CACHE : Dict[str, str] = {}
 ACTIVE_DEVICE : str = 'cpu'
 
@@ -48,7 +55,8 @@ class SwapOptions:
 	face_enhancer_enabled : bool = True
 	face_enhancer_model : str = 'gfpgan_1.4'
 	occlusion_mask_enabled : bool = True
-	face_position : Optional[int] = None
+	face_mode : str = 'all'
+	face_position : int = 0
 	reference_frame_number : int = 0
 
 
@@ -193,17 +201,16 @@ def apply_options(options : SwapOptions) -> None:
 	state_manager.set_item('processors', processors)
 	state_manager.set_item('source_paths', options.source_paths)
 	state_manager.set_item('face_swapper_model', options.face_swapper_model)
-	state_manager.set_item('face_swapper_pixel_boost', face_swapper_choices.face_swapper_set.get(options.face_swapper_model)[0])
+	face_swapper_pixel_boosts = face_swapper_choices.face_swapper_set.get(options.face_swapper_model) #type:ignore[call-overload]
+	state_manager.set_item('face_swapper_pixel_boost', face_swapper_pixel_boosts[0])
 	state_manager.set_item('face_enhancer_model', options.face_enhancer_model)
 	state_manager.set_item('face_mask_types', [ 'box', 'occlusion' ] if options.occlusion_mask_enabled else [ 'box' ])
 	state_manager.set_item('reference_frame_number', options.reference_frame_number)
 	state_manager.set_item('workflow_mode', 'auto')
 
-	if options.face_position is None:
-		state_manager.set_item('face_selector_mode', 'many')
-	else:
-		state_manager.set_item('face_selector_mode', 'reference')
-		state_manager.set_item('reference_face_position', options.face_position)
+	state_manager.set_item('face_selector_mode', FACE_SELECTOR_MODES.get(options.face_mode, 'many'))
+	state_manager.set_item('face_selector_order', 'large-small')
+	state_manager.set_item('reference_face_position', options.face_position)
 
 
 def apply_target_path(target_path : str) -> None:
@@ -215,9 +222,22 @@ def apply_target_path(target_path : str) -> None:
 
 
 def ensure_models() -> bool:
-	from facefusion import core
+	from facefusion import core, state_manager
 
-	return core.common_pre_check() and core.processors_pre_check()
+	model_key = '|'.join(map(str, [ state_manager.get_item('processors'), state_manager.get_item('face_swapper_model'), state_manager.get_item('face_enhancer_model'), state_manager.get_item('face_mask_types') ]))
+
+	if model_key in VERIFIED_MODEL_KEYS:
+		return True
+	if core.common_pre_check() and core.processors_pre_check():
+		VERIFIED_MODEL_KEYS.add(model_key)
+		return True
+	return False
+
+
+def prepare_models(options : SwapOptions) -> bool:
+	with ENGINE_LOCK:
+		apply_options(options)
+		return ensure_models()
 
 
 def pop_error_message(error_code : int = 1) -> str:
@@ -363,7 +383,7 @@ def run(options : SwapOptions) -> RunResult:
 			if not ensure_models():
 				return RunResult(False, output_path, pop_error_message())
 
-			error_code = core.conditional_process()
+			error_code : int = core.conditional_process()
 		except SystemExit as exception:
 			error_code = exception.code if isinstance(exception.code, int) and exception.code else 1
 		finally:
